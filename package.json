@@ -70,8 +70,9 @@
     "url-loader": "^0.6.2",
     "vue-eslint-parser": "^3.2.2",
     "vue-loader": "^15.4.2",
+    "vue-server-renderer": "^2.6.10",
     "vue-style-loader": "^4.1.2",
-    "vue-template-compiler": "^2.5.17",
+    "vue-template-compiler": "^2.6.10",
     "webpack": "^4.20.2",
     "webpack-bundle-analyzer": "^2.13.1",
     "webpack-cli": "^3.1.2",
@@ -79,8 +80,8 @@
   },
   "dependencies": {
     "axios": "^0.18.0",
-    "vue": "^2.5.17",
-    "vue-router": "^3.0.1",
-    "vuex": "^3.0.1"
+    "vue": "^2.6.10",
+    "vue-router": "^3.0.2",
+    "vuex": "^3.1.0"
   }
 }
