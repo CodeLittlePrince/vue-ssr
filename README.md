@@ -1,20 +1,5 @@
-Vue前端架构
+Vue SSR
 ---
-这是本王总结了很多项目下来的经验做的前端项目架构。
-
-主要工具介绍
----
-工具名                   | 作用
------------------------ | ------
-vue v2.5                | data binding
-vue-router v3           | vue路由
-webpack v4              | 本地发开、打包发布
-webpack-dev-server v3   | 本地启mock服务
-webpack-bundle-analyzer | 打包后文件分析
-koa v2                  | 本地模拟数据接口
-axios                   | 处理get/post
-mockjs                  | 制造模拟数据
-nodemon                 | 修改node代码不需要重启监听，一直运行就好
 
 功能介绍
 ---
@@ -70,10 +55,10 @@ componentsBase: `npm run build:componentsBase`
 `npm run analyze`
 
 ### 发布（开发、测试、预发）
-`npm run prod`
+`npm run ssr:prod`
 
 ### 发布（上线）
-`npm run online`
+`npm run ssr:online`
 
 ### 本地mock数据
 #### 常规mock数据
