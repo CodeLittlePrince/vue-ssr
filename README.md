@@ -1,5 +1,6 @@
 Vue SSR
 ---
+vue ssr例子。
 
 功能介绍
 ---
