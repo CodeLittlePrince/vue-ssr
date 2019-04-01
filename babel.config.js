@@ -5,12 +5,13 @@ module.exports = {
       {
         'targets': {
           'browsers': [
-            '> 1%',
-            'last 2 versions',
-            'ie >= 11'
+            '> 0.1%',
+            'iOS >= 7.0',
+            'Android >= 4.3'
           ]
         },
         'modules': false,
+        'corejs': '2',
         'useBuiltIns': 'usage'
       }
     ]
@@ -21,5 +22,8 @@ module.exports = {
     ['@babel/plugin-proposal-class-properties', { 'loose': true }]
   ],
   'env': {
+    'test': {
+      'plugins': [ 'istanbul' ]
+    }
   }
 }

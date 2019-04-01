@@ -1,0 +1,11 @@
+{
+  "name": "Vue Hackernews 2.0",
+  "short_name": "Vue HN",
+  "icons": [{
+    "src": "/favicon.ico",
+    "sizes": "48x48",
+    "type": "image/ico"
+  }],
+  "start_url": "/",
+  "display": "standalone"
+}

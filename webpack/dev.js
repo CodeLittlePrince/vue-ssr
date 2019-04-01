@@ -1,99 +1,90 @@
-const opn = require('opn')
-const chalk = require('chalk')
+const fs = require('fs')
+const path = require('path')
+const MFS = require('memory-fs')
 const webpack = require('webpack')
-const WebpackDevServer = require('webpack-dev-server')
-const portfinder = require('portfinder')
-const webpackDev = require('./webpack.config.dev')
-const proxyConfig = require('./proxy.config.js')
-const webpackConfigBase = require('./webpack.config.base.js')
+const chokidar = require('chokidar')
+const clientConfig = require('./webpack.config.client')
+const serverConfig = require('./webpack.config.server')
+const convert = require('koa-convert')
+const koaDevMiddleware = require('koa-webpack-dev-middleware')
+const koaHotMiddleware = require('koa-webpack-hot-middleware')
 
-async function serve() {
-  // 协议
-  const protocol = 'http'
-  // 获取地址
-  const domain = '0.0.0.0'
-  // 动态获取端口，默认8080
-  portfinder.basePort = 8080
-  const port = await portfinder.getPortPromise()
-  const publicUrl = `${protocol}://${domain}:${port}`
-
-  // inject dev & hot-reload middleware entries
-  const sockjsUrl = `?${publicUrl}/sockjs-node`
-  // inject dev/hot client
-  webpackDev.entry.app.push(
-    // dev server client
-    require.resolve('webpack-dev-server/client') + sockjsUrl,
-    // hmr client
-    require.resolve('webpack/hot/dev-server')
-  )
-  // 配置devServer
-  const compiler = webpack(webpackDev)
-  const server = new WebpackDevServer(
-    compiler,
-    {
-      clientLogLevel: 'none',
-      quiet: true,
-      proxy: {
-        // 凡是 `/api` 开头的 http 请求，都会被代理到 target 上，由 koa 提供 mock 数据。
-        // koa 代码在 ./mock 目录中，启动命令为 npm run mock。
-        '/': {
-          target: `${proxyConfig.domain}:${proxyConfig.port}`, // 如果说联调了，将地址换成后端环境的地址就哦了
-          secure: false,
-          changeOrigin: true,
-          // Skipping proxy for browser request
-          bypass: function(req) {
-            if (
-              req.headers.accept.indexOf('html') !== -1 &&
-              req.url !== '/mock-switch/'
-            ) {
-              return '/index.html'
-            }
-          }
-        }
-      },
-      disableHostCheck: true, // 为了手机可以访问
-      contentBase: webpackConfigBase.resolve('dev'), // 本地服务器所加载的页面所在的目录
-      watchContentBase: true,
-      historyApiFallback: true, // 为了SPA应用服务
-      inline: true, // 实时刷新
-      hot: true  // 使用热加载插件 HotModuleReplacementPlugin
-    }
-  )
-  
-  // 关闭监听保证进程关闭
-  ;['SIGINT', 'SIGTERM'].forEach(signal => {
-    process.on(signal, () => {
-      server.close(() => {
-        process.exit(0)
-      })
-    })
-  })
-  process.on('SIGHUP', function () {
-    process.kill(process.pid, 'SIGTERM')
-  })
-  
-  // 编译完成后提示文案
-  compiler.hooks.done.tap('Webpack devServer serve', stats => {
-    if (stats.hasErrors()) {
-      return
-    }
-    console.log()
-    console.log('  App running at:')
-    console.log(`  - Local:   ${chalk.cyan('http://localhost' + ':' + port)}`)
-    console.log(`  - Network: ${chalk.cyan('http://' + proxyConfig.ip + ':' + port)}`)
-    console.log(`  - Mock:    ${chalk.cyan('http://' + proxyConfig.ip + ':' + proxyConfig.port)}`)
-    console.log()
-    console.log('  Note that the development build is not optimized.')
-    console.log(`  To create a production build, and take a view of files' size, run ${chalk.cyan('npm run analyze')}.`)
-    console.log()
-  })
-  
-  server.listen(port, domain, err => {
-    err && console.log(err)
-    // 新窗口打开
-    opn(`http://${proxyConfig.ip}:${port}`)
-  })
+const readFile = (fs, file) => {
+  try {
+    return fs.readFileSync(path.join(clientConfig.output.path, file), 'utf-8')
+  } catch (e) {
+    console.error(e)
+  }
 }
 
-// 启动
-serve()
+module.exports = function setupDevServer (app, templatePath, cb) {
+  let bundle
+  let template
+  let clientManifest
+
+  let ready
+  const readyPromise = new Promise(r => { ready = r })
+  const update = () => {
+    if (bundle && clientManifest) {
+      ready()
+      cb(bundle, {
+        template,
+        clientManifest
+      })
+    }
+  }
+
+  // read template from disk and watch
+  template = fs.readFileSync(templatePath, 'utf-8')
+  chokidar.watch(templatePath).on('change', () => {
+    template = fs.readFileSync(templatePath, 'utf-8')
+    console.log('index.html template updated.')
+    update()
+  })
+
+  // modify client config to work with hot middleware
+  // clientConfig.entry.app = ['webpack-hot-middleware/client', clientConfig.entry.app]
+  clientConfig.entry.app = ['webpack-hot-middleware/client', clientConfig.entry.app]
+  clientConfig.plugins.push(
+    new webpack.HotModuleReplacementPlugin(),
+    new webpack.NoEmitOnErrorsPlugin()
+  )
+
+  // dev middleware
+  const clientCompiler = webpack(clientConfig)
+  const devMiddleware = koaDevMiddleware(clientCompiler, {
+    publicPath: clientConfig.output.publicPath,
+    noInfo: true
+  })
+  app.use(convert(devMiddleware))
+  clientCompiler.plugin('done', stats => {
+    stats = stats.toJson()
+    stats.errors.forEach(err => console.error(err))
+    stats.warnings.forEach(err => console.warn(err))
+    if (stats.errors.length) return
+    clientManifest = JSON.parse(readFile(
+      devMiddleware.fileSystem,
+      'vue-ssr-client-manifest.json'
+    ))
+    update()
+  })
+
+  // hot middleware
+  app.use(convert(koaHotMiddleware(clientCompiler, { heartbeat: 5000 })))
+
+  // watch and update server renderer
+  const serverCompiler = webpack(serverConfig)
+  const mfs = new MFS()
+  serverCompiler.outputFileSystem = mfs
+  serverCompiler.watch({}, (err, stats) => {
+    if (err) throw err
+    stats = stats.toJson()
+    if (stats.errors.length) return
+
+    // read bundle generated by vue-ssr-webpack-plugin
+    bundle = JSON.parse(readFile(mfs, 'vue-ssr-server-bundle.json'))
+    update()
+  })
+
+  return readyPromise
+}
