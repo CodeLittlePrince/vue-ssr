@@ -3,7 +3,7 @@
     <div class="content jello">
       <p>{{ asyncData.greeting }}</p>
       <h1 v-directive-sample:arg="'msg'">
-        {{ `Vue` | filterSample('之脚手架') }}
+        {{ `Vue` | filterSample(' SSR') }}
         <span>- by 咻</span>
       </h1>
       <a
@@ -30,6 +30,14 @@ export default {
   },
   asyncData ({ store }) {
     return store.dispatch('setGreeting')
+  },
+  created() {
+    if (this.$isServer) {
+      return
+    }
+    const div = document.createElement('div')
+    div.textContent = 'Kitty'
+    document.body.append(div)
   },
   mounted() {
     // ajax get data
